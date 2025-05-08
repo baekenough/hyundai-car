@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>숨고 백상이입니다.</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 20px;
+        background: #f9f9f9;
+        font-size: 16px;
+      }
+      h2 {
+        margin-bottom: 5px;
+        cursor: pointer;
+        user-select: none;
+      }
+      h2:hover {
+        color: #0066cc;
+      }
+      .csv-upload-container {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+      }
+      .csv-upload-container.active {
+        display: block;
+      }
+      .overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+      }
+      .overlay.active {
+        display: block;
+      }
+      .close-button {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        cursor: pointer;
+        font-size: 20px;
+        color: #666;
+      }
+      .close-button:hover {
+        color: #000;
+      }
+      p.subtitle {
+        margin-top: 0;
+        margin-bottom: 20px;
+        color: #555;
+      }
+      select {
+        font-size: 16px;
+        padding: 10px;
+        width: 100%;
+        margin: 10px 0;
+      }
+      .card {
+        background: white;
+        border: 1px solid #ccc;
+        border-radius: 10px;
+        padding: 15px;
+        margin: 15px 0;
+        box-shadow: 1px 1px 6px rgba(0, 0, 0, 0.1);
+      }
+      .card div {
+        margin: 5px 0;
+      }
+      .label {
+        font-weight: bold;
+        display: inline-block;
+        width: 130px;
+      }
+      .highlight {
+        color: #0066cc;
+        font-weight: bold;
+      }
+      .no-data {
+        text-align: center;
+        color: red;
+        margin-top: 20px;
+        font-weight: bold;
+      }
+      .loading {
+        text-align: center;
+        margin-top: 20px;
+      }
+      .filters {
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .filters select {
+        flex: 1;
+        min-width: 200px;
+      }
+      .status {
+        margin: 10px 0;
+        color: #555;
+        font-style: italic;
+      }
+      #csvFile {
+        width: 100%;
+        padding: 10px;
+        margin: 10px 0;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        background: white;
+        cursor: pointer;
+      }
+      #csvFile:hover {
+        border-color: #0066cc;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>숨고 백상이입니다. 검색기</h2>
+    <div class="overlay"></div>
+    <div class="csv-upload-container">
+      <span class="close-button">&times;</span>
+      <h3>CSV 파일 업로드</h3>
+      <input type="file" id="csvFile" accept=".csv" style="margin: 20px 0" />
+      <button
+        id="updateCsv"
+        style="
+          display: none;
+          width: 100%;
+          padding: 10px;
+          margin: 10px 0;
+          background: #0066cc;
+          color: white;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+        "
+      >
+        CSV 파일 업데이트
+      </button>
+    </div>
+    <p class="subtitle">
+      미리 고객과 연락하시어 <span id="currentDate"></span>일, 서남부의
+      슈퍼파워를 보여주세요!
+    </p>
+
+    <div class="filters">
+      <select id="carType">
+        <option value="">차종 선택</option>
+      </select>
+      <select id="engine">
+        <option value="">엔진 선택</option>
+        <option value="가솔린">가솔린</option>
+        <option value="LPi">LPi</option>
+        <option value="하이브리드">하이브리드</option>
+        <option value="전기">전기</option>
+      </select>
+
+      <select id="trim">
+        <option value="">트림 선택</option>
+        <option value="스마트">스마트</option>
+        <option value="프리미엄">프리미엄</option>
+        <option value="인스퍼레이션">인스퍼레이션</option>
+        <option value="N Line">N Line</option>
+        <option value="익스클루시브">익스클루시브</option>
+        <option value="프레스티지">프레스티지</option>
+        <option value="롱레인지">롱레인지</option>
+      </select>
+
+      <select id="color">
+        <option value="">외장칼라 선택</option>
+      </select>
+    </div>
+
+    <div id="status" class="status"></div>
+    <div id="results"></div>
+
+    <script>
+      // 클릭 카운터 관련 변수
+      let clickCount = 0;
+      let clickTimer = null;
+      const CLICK_THRESHOLD = 10;
+      const CLICK_TIMEOUT = 5000;
+
+      // 제목 클릭 이벤트 처리
+      document.querySelector("h2").addEventListener("click", function () {
+        clickCount++;
+
+        if (clickTimer === null) {
+          clickTimer = setTimeout(() => {
+            clickCount = 0;
+            clickTimer = null;
+          }, CLICK_TIMEOUT);
+        }
+
+        if (clickCount >= CLICK_THRESHOLD) {
+          // CSV 업로드 컨테이너 표시
+          document
+            .querySelector(".csv-upload-container")
+            .classList.add("active");
+          document.querySelector(".overlay").classList.add("active");
+
+          // 타이머와 카운터 초기화
+          clearTimeout(clickTimer);
+          clickCount = 0;
+          clickTimer = null;
+        }
+      });
+
+      // 닫기 버튼 이벤트 처리
+      document
+        .querySelector(".close-button")
+        .addEventListener("click", function () {
+          document
+            .querySelector(".csv-upload-container")
+            .classList.remove("active");
+          document.querySelector(".overlay").classList.remove("active");
+        });
+
+      // 오버레이 클릭 시 닫기
+      document.querySelector(".overlay").addEventListener("click", function () {
+        document
+          .querySelector(".csv-upload-container")
+          .classList.remove("active");
+        document.querySelector(".overlay").classList.remove("active");
+      });
+
+      // 현재 날짜 포맷팅 및 표시
+      function formatDate(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      }
+
+      document.getElementById("currentDate").textContent = formatDate(
+        new Date()
+      );
+
+      let data = [];
+      let filteredData = [];
+      let carTypeSet = new Set();
+      let colorSet = new Set();
+      let currentFilters = {
+        carType: "",
+        engine: "",
+        trim: "",
+        color: "",
+      };
+      let uploadedCsvContent = null;
+      let isUsingUploadedFile = false;
+
+      // CSV 파일 업로드 처리
+      document
+        .getElementById("csvFile")
+        .addEventListener("change", function (e) {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+              try {
+                uploadedCsvContent = e.target.result;
+                // 업로드된 파일로 미리보기만 표시
+                const tempData = processCSVData(uploadedCsvContent, true);
+                document.getElementById("status").textContent =
+                  "CSV 파일이 성공적으로 로드되었습니다. 업데이트 버튼을 눌러 저장하세요.";
+                document.getElementById("updateCsv").style.display = "block";
+                // 원래 데이터로 복원
+                processCSVData(
+                  data.map((row) => Object.values(row).join(",")).join("\n")
+                );
+              } catch (error) {
+                console.error("CSV 처리 중 오류 발생:", error);
+                document.getElementById(
+                  "results"
+                ).innerHTML = `<div class="no-data">CSV 파일 처리 중 오류가 발생했습니다: ${error.message}</div>`;
+                document.getElementById("status").textContent =
+                  "CSV 파일 처리 실패";
+              }
+            };
+            reader.readAsText(file);
+          }
+        });
+
+      // CSV 파일 업데이트 처리
+      document
+        .getElementById("updateCsv")
+        .addEventListener("click", async function () {
+          if (!uploadedCsvContent) {
+            alert("먼저 CSV 파일을 업로드해주세요.");
+            return;
+          }
+
+          try {
+            const response = await fetch("/.netlify/functions/update-csv", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ content: uploadedCsvContent }),
+            });
+
+            if (!response.ok) {
+              throw new Error("CSV 파일 업데이트 실패");
+            }
+
+            const result = await response.json();
+            document.getElementById("status").textContent =
+              "CSV 파일이 성공적으로 업데이트되었습니다. 페이지를 새로고침하면 변경사항이 적용됩니다.";
+            document.getElementById("updateCsv").style.display = "none";
+            isUsingUploadedFile = false;
+          } catch (error) {
+            console.error("CSV 업데이트 중 오류 발생:", error);
+            document.getElementById("status").textContent =
+              "CSV 파일 업데이트 실패: " + error.message;
+          }
+        });
+
+      // 디바운스 함수 - 연속 호출 시 마지막 호출만 실행
+      function debounce(func, wait) {
+        let timeout;
+        return function () {
+          const context = this;
+          const args = arguments;
+          clearTimeout(timeout);
+          timeout = setTimeout(() => {
+            func.apply(context, args);
+          }, wait);
+        };
+      }
+
+      async function loadData() {
+        try {
+          // 로딩 표시
+          document.getElementById("results").innerHTML =
+            '<div class="loading">데이터를 불러오는 중입니다...</div>';
+          document.getElementById("status").textContent =
+            "데이터를 불러오는 중...";
+
+          const startTime = performance.now();
+          const response = await fetch("data.csv");
+
+          if (!response.ok) {
+            throw new Error(`HTTP 에러! 상태: ${response.status}`);
+          }
+
+          const text = await response.text();
+          processCSVData(text);
+
+          const endTime = performance.now();
+          document.getElementById(
+            "status"
+          ).textContent = `데이터 로드 완료 (${Math.round(
+            endTime - startTime
+          )}ms)`;
+        } catch (error) {
+          console.error("데이터 로딩 중 오류 발생:", error);
+          document.getElementById(
+            "results"
+          ).innerHTML = `<div class="no-data">데이터 로딩 중 오류가 발생했습니다: ${error.message}</div>`;
+          document.getElementById("status").textContent = "데이터 로드 실패";
+        }
+      }
+
+      function processCSVData(csvText, isPreview = false) {
+        const startTime = performance.now();
+
+        const rows = csvText
+          .trim()
+          .split("\n")
+          .map((r) =>
+            r.split(",").map((cell) => cell.trim().replace(/^"|"$/g, ""))
+          );
+
+        if (!rows || rows.length === 0) {
+          throw new Error("CSV 데이터 형식이 올바르지 않습니다.");
+        }
+
+        const headers = rows[0];
+        const processedData = rows.slice(1).map((row) => {
+          let obj = {};
+          headers.forEach((h, i) => {
+            const val = row[i] || "";
+            obj[h] = val;
+          });
+          return obj;
+        });
+
+        if (!isPreview) {
+          // 실제 데이터로 사용할 때만 전역 변수 업데이트
+          data = processedData;
+
+          // 초기화
+          carTypeSet.clear();
+          colorSet.clear();
+
+          // 데이터 인덱싱
+          data.forEach((row) => {
+            if (row["차종"]) carTypeSet.add(row["차종"]);
+            if (row["외장칼라"]) colorSet.add(row["외장칼라"]);
+          });
+
+          populateSelect("carType", Array.from(carTypeSet));
+          populateSelect("color", Array.from(colorSet));
+
+          // 초기 필터링
+          filteredData = [...data];
+        }
+
+        const endTime = performance.now();
+        console.log(`데이터 처리 시간: ${Math.round(endTime - startTime)}ms`);
+
+        if (!isPreview) {
+          renderResults();
+        }
+
+        return processedData;
+      }
+
+      function populateSelect(id, items) {
+        const select = document.getElementById(id);
+        // 기존 옵션 중 첫 번째(기본 옵션)을 제외한 나머지 삭제
+        while (select.options.length > 1) {
+          select.remove(1);
+        }
+
+        items.sort().forEach((item) => {
+          const option = document.createElement("option");
+          option.value = item;
+          option.textContent = item;
+          select.appendChild(option);
+        });
+      }
+
+      function filterResults() {
+        const startTime = performance.now();
+
+        // 필터 값 가져오기
+        currentFilters = {
+          carType: document.getElementById("carType").value,
+          engine: document.getElementById("engine").value,
+          trim: document.getElementById("trim").value,
+          color: document.getElementById("color").value,
+        };
+
+        // 필터링 적용
+        filteredData = data.filter(
+          (row) =>
+            (currentFilters.carType === "" ||
+              row["차종"] === currentFilters.carType) &&
+            (currentFilters.engine === "" ||
+              row["엔진"] === currentFilters.engine) &&
+            (currentFilters.trim === "" ||
+              row["트림"] === currentFilters.trim) &&
+            (currentFilters.color === "" ||
+              row["외장칼라"] === currentFilters.color)
+        );
+
+        const endTime = performance.now();
+        document.getElementById(
+          "status"
+        ).textContent = `필터링 완료 (${Math.round(endTime - startTime)}ms) - ${
+          filteredData.length
+        }개 결과 찾음`;
+
+        renderResults();
+      }
+
+      function renderResults() {
+        const startTime = performance.now();
+
+        const container = document.getElementById("results");
+        container.innerHTML = "";
+
+        if (filteredData.length === 0) {
+          container.innerHTML =
+            '<div class="no-data">일치하는 차량이 없습니다.</div>';
+          return;
+        }
+
+        // 결과가 많을 경우 성능을 위해 가상화 또는 페이지네이션 적용
+        const maxDisplay = 50;
+        const displayCount = Math.min(filteredData.length, maxDisplay);
+
+        // DocumentFragment 사용하여 DOM 조작 최소화
+        const fragment = document.createDocumentFragment();
+
+        for (let i = 0; i < displayCount; i++) {
+          const row = filteredData[i];
+          const card = document.createElement("div");
+          card.className = "card";
+
+          Object.entries(row).forEach(([key, val]) => {
+            const highlight =
+              key === "슈퍼세이브조건" || key === "조건 계" ? "highlight" : "";
+            const line = document.createElement("div");
+            line.innerHTML = `<span class='label ${highlight}'>${key}:</span> <span class='${highlight}'>${val}</span>`;
+            card.appendChild(line);
+          });
+
+          fragment.appendChild(card);
+        }
+
+        container.appendChild(fragment);
+
+        // 결과가 많을 경우 알림 추가
+        if (filteredData.length > maxDisplay) {
+          const notice = document.createElement("div");
+          notice.className = "status";
+          notice.textContent = `총 ${filteredData.length}개 중 ${maxDisplay}개만 표시됩니다. 더 정확한 검색을 위해 필터를 추가해주세요.`;
+          container.appendChild(notice);
+        }
+
+        const endTime = performance.now();
+        console.log(`렌더링 시간: ${Math.round(endTime - startTime)}ms`);
+      }
+
+      // 디바운스된 필터링 함수
+      const debouncedFilter = debounce(filterResults, 300);
+
+      // 이벤트 리스너 등록
+      document
+        .getElementById("carType")
+        .addEventListener("change", debouncedFilter);
+      document
+        .getElementById("engine")
+        .addEventListener("change", debouncedFilter);
+      document
+        .getElementById("trim")
+        .addEventListener("change", debouncedFilter);
+      document
+        .getElementById("color")
+        .addEventListener("change", debouncedFilter);
+
+      // 초기 데이터 로드
+      loadData();
+    </script>
+  </body>
+</html>
