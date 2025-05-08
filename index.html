@@ -162,10 +162,6 @@
       </select>
       <select id="engine">
         <option value="">엔진 선택</option>
-        <option value="가솔린">가솔린</option>
-        <option value="LPi">LPi</option>
-        <option value="하이브리드">하이브리드</option>
-        <option value="전기">전기</option>
       </select>
 
       <select id="trim">
@@ -175,6 +171,23 @@
       <select id="color">
         <option value="">외장칼라 선택</option>
       </select>
+
+      <button
+        id="refreshFilters"
+        style="
+          width: 100%;
+          padding: 10px;
+          margin: 10px 0;
+          background: #0066cc;
+          color: white;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+          font-size: 16px;
+        "
+      >
+        필터 초기화
+      </button>
     </div>
 
     <div id="status" class="status"></div>
@@ -479,31 +492,81 @@
         // Get unique trims and colors based on selected car type and engine
         const trimSet = new Set();
         const colorSet = new Set();
+        const engineSet = new Set();
 
         data.forEach((row) => {
           const matchesCarType =
             selectedCarType === "" || row["차종"] === selectedCarType;
-          const matchesEngine =
-            selectedEngine === "" || row["엔진"] === selectedEngine;
 
-          if (matchesCarType && matchesEngine) {
-            if (row["트림"]) trimSet.add(row["트림"]);
-            if (row["외장칼라"]) colorSet.add(row["외장칼라"]);
+          if (matchesCarType) {
+            if (row["엔진"]) engineSet.add(row["엔진"]);
+            if (selectedEngine === "" || row["엔진"] === selectedEngine) {
+              if (row["트림"]) trimSet.add(row["트림"]);
+              if (row["외장칼라"]) colorSet.add(row["외장칼라"]);
+            }
           }
         });
+
+        // Update engine options
+        const engineSelect = document.getElementById("engine");
+        const currentEngine = engineSelect.value;
+        engineSelect.innerHTML = '<option value="">엔진 선택</option>';
+        const engineOptions = Array.from(engineSet).sort();
+        engineOptions.forEach((engine) => {
+          const option = document.createElement("option");
+          option.value = engine;
+          option.textContent = engine;
+          engineSelect.appendChild(option);
+        });
+
+        // 엔진이 1개일 경우 자동 선택
+        if (engineOptions.length === 1) {
+          engineSelect.value = engineOptions[0];
+          // 엔진이 자동 선택되었으므로 trim과 color 옵션도 업데이트
+          const selectedEngine = engineOptions[0];
+          trimSet.clear();
+          colorSet.clear();
+
+          data.forEach((row) => {
+            if (
+              (selectedCarType === "" || row["차종"] === selectedCarType) &&
+              row["엔진"] === selectedEngine
+            ) {
+              if (row["트림"]) trimSet.add(row["트림"]);
+              if (row["외장칼라"]) colorSet.add(row["외장칼라"]);
+            }
+          });
+        }
 
         // Update trim options
         const trimSelect = document.getElementById("trim");
         const currentTrim = trimSelect.value;
         trimSelect.innerHTML = '<option value="">트림 선택</option>';
-        Array.from(trimSet)
-          .sort()
-          .forEach((trim) => {
-            const option = document.createElement("option");
-            option.value = trim;
-            option.textContent = trim;
-            trimSelect.appendChild(option);
+        const trimOptions = Array.from(trimSet).sort();
+        trimOptions.forEach((trim) => {
+          const option = document.createElement("option");
+          option.value = trim;
+          option.textContent = trim;
+          trimSelect.appendChild(option);
+        });
+
+        // 트림이 1개일 경우 자동 선택
+        if (trimOptions.length === 1) {
+          trimSelect.value = trimOptions[0];
+          // 트림이 자동 선택되었으므로 color 옵션도 업데이트
+          const selectedTrim = trimOptions[0];
+          colorSet.clear();
+
+          data.forEach((row) => {
+            if (
+              (selectedCarType === "" || row["차종"] === selectedCarType) &&
+              (selectedEngine === "" || row["엔진"] === selectedEngine) &&
+              row["트림"] === selectedTrim
+            ) {
+              if (row["외장칼라"]) colorSet.add(row["외장칼라"]);
+            }
           });
+        }
 
         // Update color options
         const colorSelect = document.getElementById("color");
@@ -519,6 +582,9 @@
           });
 
         // Restore previous selections if they still exist in the new options
+        if (currentEngine && engineSet.has(currentEngine)) {
+          engineSelect.value = currentEngine;
+        }
         if (currentTrim && trimSet.has(currentTrim)) {
           trimSelect.value = currentTrim;
         }
@@ -592,6 +658,20 @@
       document
         .getElementById("color")
         .addEventListener("change", debouncedFilter);
+
+      // 필터 초기화 버튼 이벤트 리스너
+      document
+        .getElementById("refreshFilters")
+        .addEventListener("click", function () {
+          // 모든 select 요소 초기화
+          document.getElementById("carType").value = "";
+          document.getElementById("engine").value = "";
+          document.getElementById("trim").value = "";
+          document.getElementById("color").value = "";
+
+          // 필터링 함수 실행
+          filterResults();
+        });
 
       // 초기 데이터 로드
       loadData();
