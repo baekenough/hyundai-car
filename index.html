@@ -150,8 +150,8 @@
         CSV 파일 업데이트
       </button>
     </div>
-      <h3>한발 더 빠르고 자세하게!</h3>
-      <h3>동북부 슈퍼세이브 리스트를 확인하세요!</h3>
+    <h3>한 발 더 빠르고 자세하게!</h3>
+    <h3>동북부 슈퍼세이브 리스트를 확인하세요!</h3>
     <p class="subtitle">
       <span id="currentDate"></span>
     </p>
@@ -273,7 +273,6 @@
               try {
                 uploadedCsvContent = e.target.result;
                 // 업로드된 파일로 미리보기만 표시
-                const tempData = processCSVData(uploadedCsvContent, true);
                 document.getElementById("status").textContent =
                   "CSV 파일이 성공적으로 로드되었습니다. 업데이트 버튼을 눌러 저장하세요.";
                 document.getElementById("updateCsv").style.display = "block";
@@ -316,7 +315,6 @@
               throw new Error("CSV 파일 업데이트 실패");
             }
 
-            const result = await response.json();
             document.getElementById("status").textContent =
               "CSV 파일이 성공적으로 업데이트되었습니다. 페이지를 새로고침하면 변경사항이 적용됩니다.";
             document.getElementById("updateCsv").style.display = "none";
@@ -455,6 +453,9 @@
           color: document.getElementById("color").value,
         };
 
+        // Update trim and color options based on selected car type and engine
+        updateTrimAndColorOptions();
+
         // 필터링 적용
         filteredData = data.filter(
           (row) =>
@@ -476,6 +477,61 @@
         }개 결과 찾음`;
 
         renderResults();
+      }
+
+      function updateTrimAndColorOptions() {
+        const selectedCarType = document.getElementById("carType").value;
+        const selectedEngine = document.getElementById("engine").value;
+
+        // Get unique trims and colors based on selected car type and engine
+        const trimSet = new Set();
+        const colorSet = new Set();
+
+        data.forEach((row) => {
+          const matchesCarType =
+            selectedCarType === "" || row["차종"] === selectedCarType;
+          const matchesEngine =
+            selectedEngine === "" || row["엔진"] === selectedEngine;
+
+          if (matchesCarType && matchesEngine) {
+            if (row["트림"]) trimSet.add(row["트림"]);
+            if (row["외장칼라"]) colorSet.add(row["외장칼라"]);
+          }
+        });
+
+        // Update trim options
+        const trimSelect = document.getElementById("trim");
+        const currentTrim = trimSelect.value;
+        trimSelect.innerHTML = '<option value="">트림 선택</option>';
+        Array.from(trimSet)
+          .sort()
+          .forEach((trim) => {
+            const option = document.createElement("option");
+            option.value = trim;
+            option.textContent = trim;
+            trimSelect.appendChild(option);
+          });
+
+        // Update color options
+        const colorSelect = document.getElementById("color");
+        const currentColor = colorSelect.value;
+        colorSelect.innerHTML = '<option value="">외장칼라 선택</option>';
+        Array.from(colorSet)
+          .sort()
+          .forEach((color) => {
+            const option = document.createElement("option");
+            option.value = color;
+            option.textContent = color;
+            colorSelect.appendChild(option);
+          });
+
+        // Restore previous selections if they still exist in the new options
+        if (currentTrim && trimSet.has(currentTrim)) {
+          trimSelect.value = currentTrim;
+        }
+        if (currentColor && colorSet.has(currentColor)) {
+          colorSelect.value = currentColor;
+        }
       }
 
       function renderResults() {
