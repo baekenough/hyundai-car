@@ -77,7 +77,9 @@ function isValidDataRow(rowData) {
   
   try {
     // 숫자로 변환 가능한지 확인
-    parseFloat(price.replace(/,/g, ''));
+    if (price !== '') {
+      parseFloat(price.replace(/,/g, ''));
+    }
   } catch (e) {
     hasValidPrice = false;
   }
@@ -85,7 +87,6 @@ function isValidDataRow(rowData) {
   // 엔진 타입이 의미 있는 값인지 확인
   const engine = String(rowData['엔진'] || '').trim();
   const hasValidEngine = engine !== '' && 
-                        ['하이브리드', '전기', '가솔린', 'Lpi'].includes(engine) && 
                         engine.toLowerCase() !== '엔진';
   
   // 차종이 헤더가 아닌지 확인
@@ -100,13 +101,10 @@ function isValidDataRow(rowData) {
   const options = String(rowData['옵션'] || '').trim();
   const hasValidOptions = options !== '' && options.toLowerCase() !== '옵션';
   
-  // 모든 조건을 만족해야 유효한 행으로 간주
+  // 최소 조건만 체크하도록 완화
   return hasValidProductionNumber && 
-         hasValidPrice && 
          isNotHeader && 
-         hasValidCenter && 
-         hasValidOptions && 
-         hasValidEngine;
+         model !== '';  // 차종 정보가 있기만 하면 유효한 것으로 간주
 }
 
 // XLSX 파일을 파싱하고 CSV 데이터로 변환하는 함수
@@ -123,19 +121,122 @@ function convertExcelToCSV(workbook) {
   ];
   
   try {
+    // 처리 정보 기록
+    let totalRows = 0;
+    let filteredRows = 0;
+    let validRows = 0;
+    
+    // 디버그 정보 출력 함수 정의
+    const appendDebugInfo = (message) => {
+      console.log(message);
+      // UI의 debugElement가 있으면 해당 요소에도 출력
+      const debugElement = document.getElementById('debugInfo');
+      if (debugElement) {
+        debugElement.textContent += message + '\n';
+      }
+    };
+    
     // 모든 시트 처리
     workbook.SheetNames.forEach(sheetName => {
-      console.log(`시트 처리 중: ${sheetName}`);
+      appendDebugInfo(`시트 처리 중: ${sheetName}`);
       const worksheet = workbook.Sheets[sheetName];
       
-      // 엑셀 시트를 JSON으로 변환
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 'A' });
+      // 워크시트 범위 정보 출력
+      const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1:A1');
+      appendDebugInfo(`시트 ${sheetName} 범위: ${worksheet['!ref']}, 행 수: ${range.e.r - range.s.r + 1}, 열 수: ${range.e.c - range.s.c + 1}`);
+      
+      // 실제 데이터의 시작 위치 찾기 (보통 5행부터 데이터 시작)
+      let dataStartRow = 5; // 기본값으로 5행 설정 (대부분의 시트에서 5행부터 데이터 시작)
+      
+      // 데이터 테이블의 헤더 행 찾기 (생산번호, 출고센터 등의 헤더가 있는 행)
+      for (let i = 1; i <= Math.min(20, range.e.r); i++) {
+        const jCell = worksheet['J' + i];
+        const kCell = worksheet['K' + i];
+        
+        // J열에 '생산번호', K열에 '출고센터' 문구가 있으면 해당 행을 헤더 행으로 간주
+        if (jCell && kCell && 
+            String(jCell.v).includes('생산번호') && 
+            String(kCell.v).includes('출고센터')) {
+          dataStartRow = i + 1; // 헤더 다음 행부터 데이터 시작
+          appendDebugInfo(`데이터 시작 행 감지: ${dataStartRow}행`);
+          break;
+        }
+      }
+      
+      // 셀 구조 샘플 (처음 몇 개 셀만 확인)
+      appendDebugInfo(`시트 ${sheetName} 셀 샘플 (데이터 시작 행):`);
+      const headerRow = dataStartRow - 1;
+      appendDebugInfo(`헤더 행(${headerRow}):`);
+      
+      // 헤더 행의 각 열 정보 출력
+      for (let col = 0; col <= Math.min(15, range.e.c); col++) {
+        const cellRef = XLSX.utils.encode_cell({r: headerRow-1, c: col});
+        const cell = worksheet[cellRef];
+        if (cell) {
+          appendDebugInfo(`  ${cellRef}: ${cell.v || '(빈 셀)'}`);
+        }
+      }
+      
+      // 첫 번째 데이터 행의 샘플 출력
+      appendDebugInfo(`첫번째 데이터 행(${dataStartRow}):`);
+      for (let col = 0; col <= Math.min(15, range.e.c); col++) {
+        const cellRef = XLSX.utils.encode_cell({r: dataStartRow-1, c: col});
+        const cell = worksheet[cellRef];
+        if (cell) {
+          appendDebugInfo(`  ${cellRef}: ${cell.v || '(빈 셀)'}`);
+        }
+      }
+      
+      // 엑셀을 JSON으로 변환 (실제 데이터 부분만)
+      const jsonData = [];
+      
+      // 각 데이터 행 처리
+      for (let r = dataStartRow - 1; r <= range.e.r; r++) {
+        const rowObj = {};
+        let hasData = false;
+        
+        // 각 열 처리
+        for (let c = 0; c <= range.e.c; c++) {
+          const cellRef = XLSX.utils.encode_cell({r: r, c: c});
+          const cell = worksheet[cellRef];
+          const colName = XLSX.utils.encode_col(c); // A, B, C, ...
+          
+          if (cell && cell.v !== undefined) {
+            rowObj[colName] = String(cell.v);
+            hasData = true;
+          } else {
+            rowObj[colName] = '';
+          }
+        }
+        
+        // 데이터가 있는 행만 추가
+        if (hasData) {
+          jsonData.push(rowObj);
+        }
+      }
+      
+      appendDebugInfo(`데이터 행 추출 성공: ${jsonData.length}개 행`);
+      
+      // JSON 변환 결과 샘플 보기
+      if (jsonData.length > 0) {
+        appendDebugInfo(`첫 번째 행 샘플: ${JSON.stringify(jsonData[0]).substring(0, 100)}...`);
+      }
+      
+      totalRows += jsonData.length;
+      appendDebugInfo(`시트 ${sheetName}의 총 행 수: ${jsonData.length}`);
       
       // 각 행 처리
+      let processedForSheet = 0;
       jsonData.forEach(row => {
         // 필요한 데이터가 있는지 확인
-        if (!row || Object.keys(row).length < 27) {
-          return; // 필요한 열이 없으면 건너뛰기
+        if (!row) {
+          return; // 빈 행이면 건너뛰기
+        }
+        
+        // 키 수가 너무 적으면 건너뛰기 (기존 27에서 5로 완화)
+        if (Object.keys(row).length < 5) {
+          filteredRows++;
+          return;
         }
         
         // 트림 텍스트 가져오기 (Q열)
@@ -171,12 +272,18 @@ function convertExcelToCSV(workbook) {
         
         // 유효한 데이터 행인지 확인
         if (isValidDataRow(resultRow)) {
+          validRows++;
           allData.push(resultRow);
+          processedForSheet++;
+        } else {
+          filteredRows++;
         }
       });
+      
+      appendDebugInfo(`시트 ${sheetName}에서 처리된 유효 데이터: ${processedForSheet}개`);
     });
     
-    console.log(`유효한 데이터 행 수: ${allData.length}개`);
+    appendDebugInfo(`총 행 수: ${totalRows}, 필터링된 행 수: ${filteredRows}, 유효한 데이터 행 수: ${validRows}`);
     
     // CSV 데이터 생성
     if (allData.length > 0) {
@@ -197,7 +304,7 @@ function convertExcelToCSV(workbook) {
     } else {
       return {
         success: false,
-        error: '변환할 데이터가 없습니다.'
+        error: '변환할 데이터가 없습니다. 업로드한 엑셀 파일의 형식을 확인해주세요.'
       };
     }
     

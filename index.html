@@ -30,6 +30,10 @@
         border-radius: 10px;
         box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
         z-index: 1000;
+        max-height: 80vh;
+        width: 80%;
+        max-width: 500px;
+        overflow-y: auto;
       }
       .csv-upload-container.active {
         display: block;
@@ -133,20 +137,25 @@
       <span class="close-button">&times;</span>
       <h3>CSV 파일 업로드</h3>
       <p>엑셀 파일(.xlsx)을 업로드하여 CSV로 변환할 수 있습니다.</p>
+      <p><strong>참고:</strong> 업로드한 엑셀 파일의 형식에 따라 데이터 추출이 실패할 수 있습니다.</p>
       <input type="file" id="csvFile" accept=".xlsx" style="margin: 20px 0" />
       <div id="uploadStatus" style="margin: 10px 0; color: #555;"></div>
+      <div id="debugInfo" style="margin: 10px 0; font-size: 12px; color: #666; white-space: pre-wrap; display: none;"></div>
       <button
         id="updateCsv"
         style="
           display: none;
           width: 100%;
-          padding: 10px;
-          margin: 10px 0;
+          padding: 15px;
+          margin: 15px 0;
           background: #0066cc;
           color: white;
           border: none;
           border-radius: 5px;
           cursor: pointer;
+          font-size: 18px;
+          font-weight: bold;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         "
       >
         CSV 파일 업데이트

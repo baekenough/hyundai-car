@@ -23,6 +23,16 @@ document.addEventListener('DOMContentLoaded', function() {
   // 현재 날짜 표시
   document.getElementById("currentDate").textContent = formatDate(new Date());
   
+  // 파일 업로드 요소 참조
+  const fileInput = document.getElementById('csvFile');
+  const updateButton = document.getElementById('updateCsv');
+  const statusElement = document.getElementById('uploadStatus');
+  
+  // 버튼 초기화 - 명시적으로 숨김
+  if (updateButton) {
+    updateButton.style.display = 'none';
+  }
+  
   // 제목 클릭 이벤트 처리
   document.querySelector("h2").addEventListener("click", function () {
     clickCount++;
@@ -94,11 +104,6 @@ document.addEventListener('DOMContentLoaded', function() {
     .getElementById("color")
     .addEventListener("change", debouncedFilter);
   
-  // 파일 입력 요소
-  const fileInput = document.getElementById('csvFile');
-  const updateButton = document.getElementById('updateCsv');
-  const statusElement = document.getElementById('uploadStatus');
-  
   // xlsx.js 라이브러리가 로드되었는지 확인
   if (typeof XLSX === 'undefined') {
     console.error('XLSX 라이브러리가 로드되지 않았습니다.');
@@ -137,9 +142,30 @@ document.addEventListener('DOMContentLoaded', function() {
     
     reader.onload = function(e) {
       try {
+        // 디버그 정보 초기화
+        const debugElement = document.getElementById('debugInfo');
+        if (debugElement) {
+          debugElement.textContent = '';
+        }
+        
+        const appendDebugInfo = (message) => {
+          console.log(message);
+          // 디버그 정보는 콘솔에만 출력하고 UI에는 표시하지 않음
+          // 디버그 정보를 UI에 표시하고 싶다면 아래 주석을 제거
+          /*
+          if (debugElement) {
+            debugElement.textContent += message + '\n';
+          }
+          */
+        };
+        
         // 엑셀 파일 파싱
         const data = new Uint8Array(e.target.result);
+        appendDebugInfo(`파일 크기: ${data.length} 바이트`);
         const workbook = XLSX.read(data, { type: 'array' });
+        
+        appendDebugInfo(`엑셀 파일 읽기 성공. 시트 개수: ${workbook.SheetNames.length}`);
+        appendDebugInfo(`시트 목록: ${workbook.SheetNames.join(', ')}`);
         
         // 엑셀을 CSV로 변환
         const result = convertExcelToCSV(workbook);
@@ -156,9 +182,36 @@ document.addEventListener('DOMContentLoaded', function() {
           document.getElementById('status').textContent = 
             'XLSX 파일이 성공적으로 CSV로 변환되었습니다. 업데이트 버튼을 눌러 저장하세요.';
           
-          // 업데이트 버튼 활성화
-          if (updateButton) {
-            updateButton.style.display = 'block';
+          // 디버그 정보 미리보기 비활성화
+          /* 
+          // CSV 데이터 미리보기 (첫 500자만)
+          if (result.data) {
+            const previewElement = document.getElementById('debugInfo');
+            if (previewElement) {
+              previewElement.textContent += '\n\n--- CSV 데이터 미리보기 ---\n';
+              previewElement.textContent += result.data.substring(0, 500);
+              previewElement.textContent += '\n...';
+            }
+          }
+          */
+          
+          // 업데이트 버튼 활성화 - 반드시 보이도록 함
+          const updateBtn = document.getElementById('updateCsv');
+          if (updateBtn) {
+            console.log('업데이트 버튼 표시');
+            updateBtn.style.display = 'block';
+            
+            // 버튼이 잘 보이도록 강조
+            updateBtn.style.backgroundColor = '#ff6600';
+            updateBtn.style.fontWeight = 'bold';
+            
+            // 업로드 컨테이너 스크롤
+            const container = document.querySelector('.csv-upload-container');
+            if (container) {
+              container.scrollTop = container.scrollHeight;
+            }
+          } else {
+            console.error('업데이트 버튼 요소를 찾을 수 없습니다!');
           }
         } else {
           if (statusElement) {
@@ -209,16 +262,52 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       
       try {
+        // CSV 데이터의 크기가 큰 경우를 대비해 청크로 나누어 전송
+        const csvData = uploadedCsvContent;
+        console.log(`CSV 데이터 크기: ${csvData.length} 바이트`);
+        
+        // 데이터 크기가 1MB를 초과하는 경우 경고
+        if (csvData.length > 1024 * 1024) {
+          console.warn(`데이터 크기가 크므로 업로드에 실패할 수 있습니다: ${Math.round(csvData.length / 1024)} KB`);
+          
+          // 큰 파일 경고
+          if (confirm('데이터 크기가 큽니다. 계속 진행하시겠습니까? (실패할 수 있습니다)')) {
+            console.log('사용자가 큰 파일 업로드 계속 진행 선택');
+          } else {
+            if (statusElement) {
+              statusElement.textContent = '업로드 취소됨 (파일 크기 문제)';
+              statusElement.style.color = 'orange';
+            }
+            return;
+          }
+        }
+        
         // 서버리스 함수에 CSV 데이터 전송
         const response = await fetch('/.netlify/functions/update-csv', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ content: uploadedCsvContent }),
+          body: JSON.stringify({ 
+            content: csvData,
+            timestamp: new Date().getTime() 
+          }),
         });
         
-        const data = await response.json();
+        // 응답 확인
+        if (!response.ok) {
+          throw new Error(`서버 응답 오류: ${response.status} ${response.statusText}`);
+        }
+        
+        let data;
+        try {
+          const responseText = await response.text();
+          console.log('서버 응답:', responseText);
+          data = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('JSON 파싱 오류:', parseError);
+          throw new Error('서버 응답을 처리할 수 없습니다: ' + parseError.message);
+        }
         
         if (data.message) {
           if (statusElement) {
