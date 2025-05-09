@@ -152,6 +152,7 @@
     </div>
     <h3>한 발 더 빠르고 자세하게!</h3>
     <h3>동북부 슈퍼세이브 리스트를 확인하세요!</h3>
+    <p>※하기 리스트 중 기 배정건이 있을 수 있으니 '국내판매시스템'에서 최종 확인바랍니다.</p>
     <p class="subtitle">
       <span id="currentDate"></span>
     </p>
@@ -250,7 +251,6 @@
         const day = String(date.getDate()).padStart(2, "0");
         return `${year}-${month}-${day}`;
       }
-
       document.getElementById("currentDate").textContent = formatDate(
         new Date()
       );
