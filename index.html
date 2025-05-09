@@ -605,8 +605,8 @@
           return;
         }
 
-        // 결과가 많을 경우 성능을 위해 가상화 또는 페이지네이션 적용
-        const maxDisplay = 50;
+        // 차종과 엔진 필터가 모두 선택된 경우 모든 결과 표시, 아니면 최대 50개 표시
+        const maxDisplay = (currentFilters.carType && currentFilters.engine) ? filteredData.length : 50;
         const displayCount = Math.min(filteredData.length, maxDisplay);
 
         // DocumentFragment 사용하여 DOM 조작 최소화
@@ -630,7 +630,7 @@
 
         container.appendChild(fragment);
 
-        // 결과가 많을 경우 알림 추가
+        // 결과가 많고 차종과 엔진 필터가 모두 선택되지 않은 경우에만 알림 추가
         if (filteredData.length > maxDisplay) {
           const notice = document.createElement("div");
           notice.className = "status";

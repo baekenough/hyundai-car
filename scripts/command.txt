@@ -1,1 +1,3 @@
 python convert_excel.py
+
+pyinstaller main.spec --distpath .
