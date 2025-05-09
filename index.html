@@ -381,26 +381,55 @@
       function processCSVData(csvText, isPreview = false) {
         const startTime = performance.now();
 
-        const rows = csvText
-          .trim()
-          .split("\n")
-          .map((r) =>
-            r.split(",").map((cell) => cell.trim().replace(/^"|"$/g, ""))
-          );
+        // 더 안전한 CSV 파싱 구현
+        // 쌍따옴표로 둘러싸인 필드 내 콤마를 처리
+        const parseCSVLine = (line) => {
+          const result = [];
+          let inQuote = false;
+          let currentField = '';
+          
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            
+            if (char === '"') {
+              // 따옴표 처리
+              inQuote = !inQuote;
+            } else if (char === ',' && !inQuote) {
+              // 콤마가 필드 구분자인 경우
+              result.push(currentField.trim().replace(/^"|"$/g, ''));
+              currentField = '';
+            } else {
+              // 일반 문자
+              currentField += char;
+            }
+          }
+          
+          // 마지막 필드 추가
+          result.push(currentField.trim().replace(/^"|"$/g, ''));
+          return result;
+        };
 
-        if (!rows || rows.length === 0) {
+        // CSV 텍스트 파싱
+        const lines = csvText.trim().split('\n');
+        if (!lines || lines.length === 0) {
           throw new Error("CSV 데이터 형식이 올바르지 않습니다.");
         }
-
-        const headers = rows[0];
-        const processedData = rows.slice(1).map((row) => {
-          let obj = {};
-          headers.forEach((h, i) => {
-            const val = row[i] || "";
-            obj[h] = val;
+        
+        const headers = parseCSVLine(lines[0]);
+        const processedData = [];
+        
+        for (let i = 1; i < lines.length; i++) {
+          if (lines[i].trim() === '') continue;
+          
+          const rowValues = parseCSVLine(lines[i]);
+          const rowObj = {};
+          
+          headers.forEach((header, index) => {
+            rowObj[header] = rowValues[index] || '';
           });
-          return obj;
-        });
+          
+          processedData.push(rowObj);
+        }
 
         if (!isPreview) {
           // 실제 데이터로 사용할 때만 전역 변수 업데이트
