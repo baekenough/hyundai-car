@@ -25,6 +25,13 @@ def extract_model_name(sheet_name):
 
 def determine_engine(sheet_name, trim_text):
     """엔진 타입을 결정합니다."""
+    # 차종 추출
+    model_name = extract_model_name(sheet_name)
+    
+    # 아이오닉5, 아이오닉6는 항상 '전기' 반환
+    if model_name == '아이오닉5' or model_name == '아이오닉6':
+        return '전기'
+    
     if 'HEV' in sheet_name:
         return '하이브리드'
     elif 'EV' in sheet_name:
