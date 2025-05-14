@@ -185,8 +185,8 @@ def convert_excel_to_csv(excel_file_path, output_file_path=None):
                 
                 # AB열(비고) 값 확인 (27번째 열)
                 ab_value = get_value(27)
-                # AB열(비고)에 '1' 값이 있으면 이 행을 건너뜀
-                if str(ab_value).strip() == '1' or str(ab_value).strip() == 1:
+                # AB열(비고)에 '1' 값이 없으면 이 행을 건너뜀
+                if str(ab_value).strip() != '1' and str(ab_value).strip() != 1:
                     filtered_by_ab_column += 1
                     continue
                 
