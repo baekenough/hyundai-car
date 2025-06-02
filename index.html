@@ -248,8 +248,9 @@
       function formatDate(date) {
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, "0");
-        const day = String(date.getDate() - 1).padStart(2, "0");
-        return `${year}-${month}-${day} 마감 기준`;
+        let day = date.getDate() - 1;
+        day = day === 0 ? 1 : day; // day가 0이면 1로 설정
+        return `${year}-${month}-${String(day).padStart(2, "0")} 마감 기준`;
       }
       document.getElementById("currentDate").textContent = formatDate(
         new Date()
